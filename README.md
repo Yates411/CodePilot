@@ -38,6 +38,8 @@ When you run multiple AI coding agents in parallel (Antigravity, OpenAI Codex, C
   - Out-of-the-box support for **6 AI coding tools** + hardened local Unix Domain Socket (`~/.codepilot/events.sock`) + `CodePilot emit` CLI for Cursor / Windsurf / Shell hooks.
 - **Custom Minimal Soundscape & Local Quota Alerts**
   - 4 built-in royalty-free UI sounds (`Radar`, `Chime`, `Thud`, `Pulse`) + Keychain-backed DeepSeek balance & 100% offline Codex local quota with low-quota alerts.
+- **One-Click GitHub Releases Self-Update**
+  - Built-in **Check for Updates** in `Settings → General`: queries GitHub Releases API, verifies `SHA256SUMS`, downloads the latest `.zip`, and atomically swaps & relaunches `CodePilot.app`.
 
 ---
 

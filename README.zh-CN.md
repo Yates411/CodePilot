@@ -37,6 +37,8 @@
   - 提供 `CodePilot emit` 极简 CLI 子命令与设置页一键复制 Hook，方便社区接入 Cursor / Windsurf / Shell。
 - **原创极简音效 & 低余额/额度主动预警**
   - 内置 4 枚原创极简音效（`Radar` / `Chime` 极短三连 / `Thud` / `Pulse`）；DeepSeek API Key 仅存 macOS 钥匙串，Codex 剩余额度纯本地零联网解析，支持低余额/低额度主动预警。
+- **GitHub Releases 应用内一键检查与原地更新**
+  - 在「设置 → 通用设置」内直接检查 GitHub Releases 最新版本；检测到新版本后支持自动下载 `.zip`、校验 `SHA256SUMS` 并原地替换重启完成升级。
 
 ---
 

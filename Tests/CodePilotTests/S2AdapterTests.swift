@@ -261,4 +261,30 @@ enum S2AdapterTests {
         let snapReleased = await manager.snapshot()
         try expect(!snapReleased.isKeepingAwake, "Clearing matched processes should release assertion")
     }
+
+    static func githubUpdateParsingAndSemver() async throws {
+        try expect(GitHubUpdateService.isNewerVersion("0.4.1", than: "0.4.0"), "0.4.1 > 0.4.0")
+        try expect(GitHubUpdateService.isNewerVersion("v1.0.0", than: "0.9.9"), "v1.0.0 > 0.9.9")
+        try expect(!GitHubUpdateService.isNewerVersion("0.4.0", than: "0.4.0"), "0.4.0 == 0.4.0")
+        try expect(!GitHubUpdateService.isNewerVersion("0.3.9", than: "0.4.0"), "0.3.9 < 0.4.0")
+
+        let json = """
+        {
+          "tag_name": "v0.4.1",
+          "html_url": "https://github.com/demo/CodePilot/releases/tag/v0.4.1",
+          "body": "Bug fixes",
+          "assets": [
+            {"name": "CodePilot-v0.4.1-arm64.zip", "browser_download_url": "https://github.com/demo/CodePilot/releases/download/v0.4.1/CodePilot-v0.4.1-arm64.zip"},
+            {"name": "SHA256SUMS", "browser_download_url": "https://github.com/demo/CodePilot/releases/download/v0.4.1/SHA256SUMS"}
+          ]
+        }
+        """
+        let info = try GitHubUpdateService.parseReleaseJSON(Data(json.utf8))
+        try expect(info.version == "0.4.1")
+        try expect(info.zipAssetName == "CodePilot-v0.4.1-arm64.zip")
+        try expect(info.checksumsURL != nil)
+
+        let sums = "deadbeef1234  CodePilot-v0.4.1-arm64.zip\n"
+        try expect(GitHubUpdateService.extractChecksum(for: "CodePilot-v0.4.1-arm64.zip", from: sums) == "deadbeef1234")
+    }
 }

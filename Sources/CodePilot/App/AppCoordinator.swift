@@ -67,11 +67,16 @@ final class AppCoordinator: ObservableObject {
     @Published var matchedProcessRules: [String] = []
     @Published var processRuleInput: String = ""
     @Published var copiedHookFeedback: String?
+    @Published var isCheckingUpdate: Bool = false
+    @Published var isInstallingUpdate: Bool = false
+    @Published var updateStatusText: String?
+    @Published var availableRelease: GitHubReleaseInfo?
 
     private let settingsStore = SettingsStore()
     private let taskStore: TaskStore
     private let powerManager: PowerAssertionManager
     private let processRuleMonitor = ProcessRuleMonitor()
+    private let updateService = GitHubUpdateService()
     private let batteryMonitor = BatteryMonitor()
     private let frontmostMonitor = FrontmostAppMonitor()
     private let socketServer: UnixSocketServer
@@ -528,6 +533,71 @@ final class AppCoordinator: ObservableObject {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(3))
             self?.copiedHookFeedback = nil
+        }
+    }
+
+    var currentAppVersion: String {
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.4.0"
+    }
+
+    func checkForUpdates() {
+        guard !isCheckingUpdate, !isInstallingUpdate else { return }
+        let repo = settings.githubUpdateRepo.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !repo.isEmpty else {
+            updateStatusText = "请先填写 GitHub 仓库（格式：用户名/CodePilot）"
+            return
+        }
+
+        isCheckingUpdate = true
+        updateStatusText = "正在向 GitHub 查询最新版本…"
+        availableRelease = nil
+
+        let service = updateService
+        let version = currentAppVersion
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.isCheckingUpdate = false }
+            do {
+                let result = try await service.checkForUpdate(repository: repo, currentVersion: version)
+                switch result {
+                case .upToDate(_, let latest):
+                    self.availableRelease = nil
+                    self.updateStatusText = "当前已是最新版本（v\(latest)）"
+                case .updateAvailable(let info):
+                    self.availableRelease = info
+                    self.updateStatusText = "发现新版本 \(info.tagName)（当前 v\(version)）"
+                }
+            } catch {
+                self.availableRelease = nil
+                self.updateStatusText = error.localizedDescription
+            }
+        }
+    }
+
+    func installAvailableUpdate() {
+        guard let release = availableRelease, !isInstallingUpdate else { return }
+        isInstallingUpdate = true
+        updateStatusText = "正在下载并校验 \(release.tagName) 安装包…"
+
+        let service = updateService
+        let bundleURL = Bundle.main.bundleURL
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await service.downloadAndInstall(release: release, currentAppURL: bundleURL)
+                self.updateStatusText = "更新包已就绪，正在重启应用完成升级…"
+                try? await Task.sleep(for: .milliseconds(450))
+                NSApp.terminate(nil)
+            } catch {
+                self.isInstallingUpdate = false
+                self.updateStatusText = error.localizedDescription
+            }
+        }
+    }
+
+    func openReleasePage() {
+        if let url = availableRelease?.releaseURL {
+            NSWorkspace.shared.open(url)
         }
     }
 

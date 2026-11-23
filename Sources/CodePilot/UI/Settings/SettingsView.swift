@@ -684,6 +684,50 @@ struct SettingsView: View {
                 }
             }
 
+            settingsCard(title: "软件更新（GitHub Releases）") {
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack(spacing: 8) {
+                        TextField("GitHub 仓库（如 yourname/CodePilot）", text: binding(\.githubUpdateRepo))
+                            .textFieldStyle(.roundedBorder)
+                        Button(coordinator.isCheckingUpdate ? "检查中…" : "检查更新") {
+                            coordinator.checkForUpdates()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(BrandPalette.braunOrange)
+                        .controlSize(.small)
+                        .disabled(coordinator.isCheckingUpdate || coordinator.isInstallingUpdate)
+                    }
+
+                    if let status = coordinator.updateStatusText {
+                        Text(status)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundStyle(coordinator.availableRelease != nil ? BrandPalette.braunOrange : .secondary)
+                    }
+
+                    if let release = coordinator.availableRelease {
+                        HStack(spacing: 8) {
+                            if release.zipAssetURL != nil {
+                                Button(coordinator.isInstallingUpdate ? "下载安装中…" : "下载并更新至 \(release.tagName)") {
+                                    coordinator.installAvailableUpdate()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(BrandPalette.emeraldGreen)
+                                .controlSize(.small)
+                                .disabled(coordinator.isInstallingUpdate)
+                            }
+                            Button("前往 Release 页面") {
+                                coordinator.openReleasePage()
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+
+                    Text("检查 GitHub Releases 最新版本；自动校验 SHA256SUMS 后原地替换并重启。")
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
             settingsCard(title: "关于 CodePilot") {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("CodePilot v0.4.0")

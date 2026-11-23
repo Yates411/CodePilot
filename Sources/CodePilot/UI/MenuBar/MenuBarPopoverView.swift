@@ -42,7 +42,7 @@ struct MenuBarPopoverView: View {
             bottomMicroKeys
         }
         .padding(14)
-        .frame(width: 368)
+        .frame(width: 380)
         .background(BrandPalette.chassisGradient(for: colorScheme))
     }
 
@@ -180,17 +180,22 @@ struct MenuBarPopoverView: View {
         let hasAny = !visibleWaiting.isEmpty || !visibleRunning.isEmpty || !visibleFinished.isEmpty
 
         if !hasAny {
-            VStack(spacing: 4) {
+            VStack(spacing: 5) {
                 Text(coordinator.selectedFilter == .all ? "STANDBY · 待命中" : "该分类下暂无任务")
-                    .font(.system(size: 11.5, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.58))
+                    .font(.system(size: 12, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.60))
                 Text("已静默监听 6 大 AI 编程工具")
                     .font(.system(size: 10.5))
-                    .foregroundStyle(.white.opacity(0.34))
+                    .foregroundStyle(.white.opacity(0.36))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 22)
+            .frame(height: 140)
         } else {
+            let groupCount = (visibleWaiting.isEmpty ? 0 : 1) + (visibleRunning.isEmpty ? 0 : 1) + (visibleFinished.isEmpty ? 0 : 1)
+            let rowCount = visibleWaiting.count + visibleRunning.count + visibleFinished.count
+            let desiredHeight = CGFloat(groupCount) * 24 + CGFloat(rowCount) * 38 + CGFloat(max(0, groupCount - 1)) * 10 + 8
+            let listHeight = min(320, max(168, desiredHeight))
+
             TimelineView(.animation(minimumInterval: 1.0, paused: visibleRunning.isEmpty)) { context in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 10) {
@@ -205,7 +210,7 @@ struct MenuBarPopoverView: View {
                         }
                     }
                 }
-                .frame(maxHeight: 224)
+                .frame(height: listHeight)
             }
         }
     }

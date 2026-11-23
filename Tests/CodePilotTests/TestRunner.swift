@@ -53,7 +53,8 @@ struct CodePilotTestMain {
             ("v0.3.deepSeekBalanceAndCodexQuotaParsing", S2AdapterTests.deepSeekBalanceAndCodexQuotaParsing),
             ("v0.4.titleSanitizerBoundsAndMetadata", S2AdapterTests.titleSanitizerBoundsAndMetadata),
             ("v0.4.antigravityApprovalTriggersWaitingUser", S2AdapterTests.antigravityApprovalTriggersWaitingUser),
-            ("v0.4.processRuleKeepAwakeAndLowBattery", S2AdapterTests.processRuleKeepAwakeAndLowBattery)
+            ("v0.4.processRuleKeepAwakeAndLowBattery", S2AdapterTests.processRuleKeepAwakeAndLowBattery),
+            ("v0.4.githubUpdateParsingAndSemver", S2AdapterTests.githubUpdateParsingAndSemver)
         ]
 
         var passed = 0

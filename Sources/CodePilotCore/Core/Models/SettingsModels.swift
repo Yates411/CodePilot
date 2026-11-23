@@ -59,6 +59,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var lowBalanceAlertEnabled: Bool
     public var deepseekLowBalanceThreshold: Double
     public var codexLowQuotaThreshold: Int
+    public var githubUpdateRepo: String
 
     public static let defaultWatchedProcesses: [String] = ["xcodebuild", "swiftc", "pytest", "cargo", "docker", "ffmpeg"]
     public static let customSounds: [String] = ["Radar", "Chime", "Thud", "Pulse"]
@@ -101,7 +102,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         watchedProcessNames: [String] = AppSettings.defaultWatchedProcesses,
         lowBalanceAlertEnabled: Bool = true,
         deepseekLowBalanceThreshold: Double = 10.0,
-        codexLowQuotaThreshold: Int = 15
+        codexLowQuotaThreshold: Int = 15,
+        githubUpdateRepo: String = ""
     ) {
         self.autoKeepAwakeEnabled = autoKeepAwakeEnabled
         self.autoPreventDisplaySleep = autoPreventDisplaySleep
@@ -139,6 +141,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.lowBalanceAlertEnabled = lowBalanceAlertEnabled
         self.deepseekLowBalanceThreshold = max(0.0, min(10000.0, deepseekLowBalanceThreshold))
         self.codexLowQuotaThreshold = max(1, min(90, codexLowQuotaThreshold))
+        self.githubUpdateRepo = githubUpdateRepo
     }
 
     public init(from decoder: Decoder) throws {
@@ -180,7 +183,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
             watchedProcessNames: try c.decodeIfPresent([String].self, forKey: .watchedProcessNames) ?? d.watchedProcessNames,
             lowBalanceAlertEnabled: try c.decodeIfPresent(Bool.self, forKey: .lowBalanceAlertEnabled) ?? d.lowBalanceAlertEnabled,
             deepseekLowBalanceThreshold: try c.decodeIfPresent(Double.self, forKey: .deepseekLowBalanceThreshold) ?? d.deepseekLowBalanceThreshold,
-            codexLowQuotaThreshold: try c.decodeIfPresent(Int.self, forKey: .codexLowQuotaThreshold) ?? d.codexLowQuotaThreshold
+            codexLowQuotaThreshold: try c.decodeIfPresent(Int.self, forKey: .codexLowQuotaThreshold) ?? d.codexLowQuotaThreshold,
+            githubUpdateRepo: try c.decodeIfPresent(String.self, forKey: .githubUpdateRepo) ?? d.githubUpdateRepo
         )
     }
 
