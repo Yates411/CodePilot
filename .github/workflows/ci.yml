@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run unit tests (Swift 6)
+        run: ./scripts/test.sh
+
+      - name: Build and bundle Release .app
+        run: |
+          ./scripts/bundle_app.sh release
+          du -sh dist/CodePilot.app
+          codesign --verify --deep --strict dist/CodePilot.app

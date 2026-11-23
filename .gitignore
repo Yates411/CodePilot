@@ -1,0 +1,22 @@
+# Build & Packaging artifacts
+.build/
+dist/
+*.dmg
+*.zip
+SHA256SUMS
+
+# Xcode / SwiftPM
+.swiftpm/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Local logs & scratch
+*.log
+/tmp/
