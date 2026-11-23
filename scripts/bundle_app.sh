@@ -29,4 +29,8 @@ echo "==> Ad-hoc signing ${APP_BUNDLE}..."
 codesign --force --sign - "${APP_BUNDLE}/Contents/Frameworks/libCodePilotCore.dylib"
 codesign --force --deep --sign - --identifier "com.codepilot.app" "${APP_BUNDLE}"
 
+echo "==> Refreshing LaunchServices registration..."
+touch "${APP_BUNDLE}"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "${APP_BUNDLE}" >/dev/null 2>&1 || true
+
 echo "==> Done: ${APP_BUNDLE}"

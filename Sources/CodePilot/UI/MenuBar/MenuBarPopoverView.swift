@@ -365,7 +365,11 @@ struct MenuBarPopoverView: View {
             .buttonStyle(.plain)
 
             Button {
-                coordinator.alertsPaused.toggle()
+                if coordinator.alertsPaused {
+                    coordinator.resumeAlerts()
+                } else {
+                    coordinator.pauseAlerts(minutes: 60)
+                }
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: coordinator.alertsPaused ? "bell.slash.fill" : "bell")

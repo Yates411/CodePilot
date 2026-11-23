@@ -12,8 +12,9 @@ public final class KimiCodeAdapter: AgentAdapter, @unchecked Sendable {
     private let epoch: String
     private var seqCounter: UInt64 = 0
     private var fileFingerprints: [String: (mtime: TimeInterval, size: UInt64)] = [:]
+    private var activeRunningPaths: Set<String> = []
     private let watcher: FSEventWatcher
-    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(300))
+    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(150))
     private let workQueue = DispatchQueue(label: "com.codepilot.adapter.kimicode", qos: .utility)
     private var emitHandler: (@Sendable (TaskEvent) -> Void)?
 
@@ -50,6 +51,7 @@ public final class KimiCodeAdapter: AgentAdapter, @unchecked Sendable {
         gen = lifecycleGeneration
         emitHandler = emit
         fileFingerprints.removeAll()
+        activeRunningPaths.removeAll()
         lock.unlock()
 
         let fm = FileManager.default
@@ -77,7 +79,7 @@ public final class KimiCodeAdapter: AgentAdapter, @unchecked Sendable {
             self?.scanRecentSessions(isPriming: true, expectedGeneration: gen)
         }
 
-        _ = watcher.start(paths: [rootDirectory], latency: 0.3) { [weak self] _ in
+        _ = watcher.start(paths: [rootDirectory], latency: 0.1) { [weak self] _ in
             guard let self else { return }
             Task { [weak self] in
                 await self?.coalescer.schedule(key: "kimi_scan") { [weak self] in
@@ -99,8 +101,17 @@ public final class KimiCodeAdapter: AgentAdapter, @unchecked Sendable {
         lifecycleGeneration &+= 1
         emitHandler = nil
         fileFingerprints.removeAll()
+        activeRunningPaths.removeAll()
         _healthStatus = .idle
         lock.unlock()
+    }
+
+    public func pollIfNeeded() {
+        let gen = currentGeneration()
+        guard case .active = healthStatus else { return }
+        workQueue.async { [weak self] in
+            self?.scanRecentSessions(isPriming: false, expectedGeneration: gen)
+        }
     }
 
     /// Exposed for deterministic unit testing.
@@ -138,11 +149,16 @@ public final class KimiCodeAdapter: AgentAdapter, @unchecked Sendable {
             }
 
             let fp = (mtime: modDate.timeIntervalSince1970, size: sizeNum.uint64Value)
+            let ageSeconds = Date().timeIntervalSince(modDate)
             lock.lock()
             let prev = fileFingerprints[statePath]
+            let wasRunning = activeRunningPaths.contains(statePath)
             lock.unlock()
             if let prev, prev.mtime == fp.mtime && prev.size == fp.size {
-                continue
+                // Re-evaluate previously running sessions once they go quiet (>= 90s)
+                if !(wasRunning && ageSeconds >= 90) {
+                    continue
+                }
             }
 
             guard let data = try? Data(contentsOf: URL(fileURLWithPath: statePath)),
@@ -156,6 +172,11 @@ public final class KimiCodeAdapter: AgentAdapter, @unchecked Sendable {
                 return
             }
             fileFingerprints[statePath] = fp
+            if event.status == .running {
+                activeRunningPaths.insert(statePath)
+            } else {
+                activeRunningPaths.remove(statePath)
+            }
             let handler = emitHandler
             lock.unlock()
             handler?(event)
@@ -202,9 +223,15 @@ public final class KimiCodeAdapter: AgentAdapter, @unchecked Sendable {
             provenLive = !isPriming || ageSeconds < 120
         } else if explicitStatus == "running" || lastTurnReason == "tool_use" || lastTurnReason == "running" ||
                     (lastTurnReason.isEmpty && ageSeconds < 90) {
-            status = .running
-            message = "Kimi Code 执行中"
-            provenLive = !isPriming || ageSeconds < 90
+            if ageSeconds >= 180 {
+                status = .completed
+                message = "历史会话已归档"
+                provenLive = false
+            } else {
+                status = .running
+                message = "Kimi Code 执行中"
+                provenLive = !isPriming || ageSeconds < 90
+            }
         } else if explicitStatus == "error" || lastTurnReason == "error" || lastTurnReason == "aborted" {
             status = .error
             message = "执行异常或已中止"
@@ -225,7 +252,7 @@ public final class KimiCodeAdapter: AgentAdapter, @unchecked Sendable {
             status: status,
             title: title,
             message: message,
-            appBundleId: nil,
+            appBundleId: "com.kimi.code.desktop",
             cwd: cwd,
             isPriming: isPriming,
             provenLive: provenLive,

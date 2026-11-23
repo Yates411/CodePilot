@@ -1,10 +1,10 @@
 # CodePilot 项目交接文档（HANDOFF）
 
 > **更新日期**：2026-11-24  
-> **当前版本**：`v0.4.0`（方向 A 视觉体系 + 方向 B 核心功能全部落地；Release 产物 `dist/CodePilot.app` 已编译并 ad-hoc 签名，整包 `4.4 MB`）  
+> **当前版本**：`v0.4.0`（方向 A 视觉体系 + 方向 B 核心功能 + 方向 C 开源发布基础设施全部落地；Git 仓库已推送至 `Yates411/CodePilot`）  
 > **项目路径**：`/Users/tianye/.gemini/antigravity/scratch/CodePilot`  
-> **前置会话**：[6f63ee59-e1b9-4ebb-ab70-cc0ac9f82990](conversation://6f63ee59-e1b9-4ebb-ab70-cc0ac9f82990)  
-> **测试状态**：`33/33` 单元测试全部通过（Swift 6 严格并发 `0 warning`，Codex P0/P1 硬伤全部收口）
+> **前置会话**：[049814db-bfe4-4216-9e8f-63bd1f3ddab4](conversation://049814db-bfe4-4216-9e8f-63bd1f3ddab4)  
+> **测试状态**：`35/35` 单元测试全部通过（Swift 6 严格并发 `0 warning`）
 
 ---
 
@@ -96,29 +96,16 @@
    - 阶段编码完成后调用 `multi-agent-bridge` 的 `run_codex`（`sandbox: "read-only"`, `reasoning_effort: "low"`）做硬伤 Review；
    - **严格收敛纪律**：只修真正的 **P0/P1 硬伤**（崩溃/死锁/竞态/安全/明确功能 bug），绝不为风格或低价值 nit 来回折腾；无硬伤（`NO_BLOCKERS`）即果断收口。
    - 注意：`run_codex` 传 `session_id` 时本地 bridge 存在 `--color` 参数冲突，复审时直接新开一次 `run_codex`（不传 `session_id`）且限制每次审阅 ≤ 4 个文件以防 3 分钟超时。
-3. **尚未初始化 Git 仓库**：目前项目目录尚未 `git init`，准备推上 GitHub 时记得先初始化 Git 并核对 `.gitignore`（绝不提交 `.build/`、`dist/`）。
+3. **Git 仓库已就绪**：远程仓库为 `https://github.com/Yates411/CodePilot.git`（`origin/main`），`.gitignore` 已排除 `.build/` 与 `dist/`。
 
 ---
 
-## 5. 待办遗留与下一阶段蓝图（v0.4 → GitHub 正式发布）
+## 5. 最新已落地能力（v0.4.0+）
 
-### 小遗留与高优待办
-- **高优修复**：排查并补齐 `AntigravityAdapter` —— 当 Antigravity 其他会话出现需要用户授权/决定（如审批弹窗、`ask_question`）时，及时识别并推送 `waitingUser` 提示。
-- 可选补跑一轮 Codex Read-Only Review（涵盖 v0.3-P3 与方向 A 新增文件）。
-
-### 三大演进方向（按用户选择推进）
-1. **方向 A · 视觉质感跃迁（已完成 ✅ · v0.3.5）**
-   - 专属暖白陶瓷精密仪表 `Resources/AppIcon.icns`（11 档 Retina）已集成进 `Info.plist` & `bundle_app.sh`；
-   - 4 枚原创极简音效（`Radar` / `Chime` 极短三连 / `Thud` / `Pulse`）已打包至 `Contents/Resources/Sounds/` 并支持分组试听；
-   - 刘海已重构为固定 `480×460` 透明 `NSPanel` 画布 + `NotchHitTestView` 精准穿透 + 双阶段弹簧 Morph 形变 + `running` 青色呼吸灯珠（遵守 Reduce Motion）；
-   - 状态栏升级为 4 态极简药丸仪表图标，Popover 与设置页全面贯通暖白陶瓷精密仪表与博朗暖橘主色，并落地首次启动 3 步引导窗口。
-2. **方向 B · v0.4 核心功能升级**
-   - **进程触发防休眠**（`xcodebuild` / `pytest` / `docker` / `cargo` / `ffmpeg` 等，彻底卸载独立 Amphetamine）；
-   - **菜单栏右键快捷菜单**（秒选保活时长 / 暂停提醒 / 设置 / 退出）；
-   - **`codepilot emit` 极简 CLI 子命令** + 设置页一键复制 Hook（方便社区接入 Cursor / Windsurf / Shell）；
-   - **低余额 / 低额度主动预警** + 终端 Tab 精准跳转（可选 Accessibility）。
-3. **方向 C · GitHub 正式开源发布基础设施**
-   - `git init` + MIT / Apache 2.0 协议 + `CONTRIBUTING.md`（附「80 行 Swift 新增适配器指南」）+ `SECURITY.md`；
-   - 中英双语 README + 15 秒高清演示 GIF；
-   - GitHub Actions CI/Release 流水线（`macos-15` 自动单测 + 构建 `.dmg` / `.zip` + `SHA256SUMS`）；
-   - Homebrew Cask Tap 配方 + Sparkle 2（EdDSA 签名）安全自动更新规划。
+- **方向 A · 视觉质感跃迁（已完成 ✅）**：暖白陶瓷精密仪表图标（`Resources/AppIcon.icns` + `CFBundleIconFile=AppIcon` + `lsregister` 刷新）、4 枚原创音效、固定 `500×460` 透明刘海画布 + `NotchHitTestView` 精准穿透、4 态状态栏图标与纯黑 OLED 自适应 Popover、首次启动 3 步引导。
+- **方向 B · 核心功能升级（已完成 ✅）**：进程触发防休眠（`ProcessRuleMonitor`）、菜单栏右键快捷菜单、`CodePilot emit` CLI 与一键复制 Hook、低余额/低额度预警、GitHub Releases 应用内自更新（`GitHubUpdateService`，默认 `Yates411/CodePilot`）。
+- **方向 C · 开源发布基础设施（已完成 ✅）**：MIT License、`CONTRIBUTING.md`、`SECURITY.md`、中英双语 README、GitHub Actions CI/Release 流水线、Homebrew Cask 配方（`Formula/codepilot.rb`）。
+- **状态同步与精准跳转增强（已完成 ✅）**：
+  - `AntigravityAdapter` 审批/提问识别（`ask_question` / `BypassSandbox` / `RequestFeedback`）；
+  - `JSONLTailer` 单行上限提至 `4 MB`、冷启动尾部窗口 `1 MB`，6 大适配器压缩 FSEvents 延迟并增加 3 秒轻量轮询兜底与静默归档，消除「已完成仍显示正在运行」；
+  - `FocusJumpService` 支持原生 Session Deep Link（`codex://threads/<id>`、`claude://code/continue?session=<id>`）、`iTerm2`/`Terminal` Tab 精准切换与 macOS Accessibility（`AXUIElement`）多窗口标题/目录匹配聚焦。

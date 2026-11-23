@@ -13,9 +13,10 @@ public final class AntigravityAdapter: AgentAdapter, @unchecked Sendable {
     private let epoch: String
     private var seqCounter: UInt64 = 0
     private var sessionTitles: [String: String] = [:]
+    private var activeRunningSessions: Set<String> = []
     private let tailer: JSONLTailer
     private let watcher: FSEventWatcher
-    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(250))
+    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(120))
     private let workQueue = DispatchQueue(label: "com.codepilot.adapter.antigravity", qos: .utility)
     private var emitHandler: (@Sendable (TaskEvent) -> Void)?
 
@@ -53,6 +54,7 @@ public final class AntigravityAdapter: AgentAdapter, @unchecked Sendable {
         gen = lifecycleGeneration
         emitHandler = emit
         sessionTitles.removeAll()
+        activeRunningSessions.removeAll()
         lock.unlock()
         tailer.resetAll()
 
@@ -81,7 +83,7 @@ public final class AntigravityAdapter: AgentAdapter, @unchecked Sendable {
             self?.scanRecentTranscripts(isPriming: true, expectedGeneration: gen)
         }
 
-        _ = watcher.start(paths: [brainDirectory], latency: 0.3) { [weak self] changedPaths in
+        _ = watcher.start(paths: [brainDirectory], latency: 0.1) { [weak self] changedPaths in
             guard let self else { return }
             var transcriptFiles = Set<String>()
             for rawPath in changedPaths {
@@ -116,9 +118,18 @@ public final class AntigravityAdapter: AgentAdapter, @unchecked Sendable {
         lifecycleGeneration &+= 1
         emitHandler = nil
         sessionTitles.removeAll()
+        activeRunningSessions.removeAll()
         _healthStatus = .idle
         lock.unlock()
         tailer.resetAll()
+    }
+
+    public func pollIfNeeded() {
+        let gen = currentGeneration()
+        guard case .active = healthStatus else { return }
+        workQueue.async { [weak self] in
+            self?.scanRecentTranscripts(isPriming: false, expectedGeneration: gen)
+        }
     }
 
     /// Exposed for deterministic unit testing without waiting on FSEvents.
@@ -133,10 +144,40 @@ public final class AntigravityAdapter: AgentAdapter, @unchecked Sendable {
             return
         }
         let lines = tailer.readNewLines(at: path)
-        guard !lines.isEmpty else { return }
-
         let modDate = (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate] as? Date) ?? Date()
         let ageSeconds = Date().timeIntervalSince(modDate)
+
+        if lines.isEmpty {
+            // If this session was previously marked running and has been silent for >= 180s,
+            // auto-complete it so stale sessions never linger as "running".
+            if ageSeconds >= 180 {
+                lock.lock()
+                let wasRunning = activeRunningSessions.remove(conversationId) != nil
+                let title = sessionTitles[conversationId] ?? "Antigravity 会话 \(conversationId.prefix(6))"
+                let validGen = (lifecycleGeneration == expectedGeneration)
+                let handler = emitHandler
+                lock.unlock()
+                if wasRunning && validGen {
+                    let archived = TaskEvent(
+                        type: .upsert,
+                        source: .antigravity,
+                        epoch: epoch,
+                        sessionId: conversationId,
+                        taskId: "main",
+                        seq: nextSeq(),
+                        status: .completed,
+                        title: title,
+                        message: "会话已静默归档",
+                        appBundleId: "com.google.antigravity",
+                        isPriming: isPriming,
+                        provenLive: false,
+                        timestamp: modDate
+                    )
+                    handler?(archived)
+                }
+            }
+            return
+        }
 
         var latestEvent: TaskEvent?
         for line in lines {
@@ -156,6 +197,11 @@ public final class AntigravityAdapter: AgentAdapter, @unchecked Sendable {
             guard lifecycleGeneration == expectedGeneration else {
                 lock.unlock()
                 return
+            }
+            if event.status == .running {
+                activeRunningSessions.insert(conversationId)
+            } else {
+                activeRunningSessions.remove(conversationId)
             }
             let handler = emitHandler
             lock.unlock()
@@ -270,7 +316,7 @@ public final class AntigravityAdapter: AgentAdapter, @unchecked Sendable {
                     mappedStatus = .running
                     message = "正在执行工具调用"
                 }
-            } else if statusStr == "DONE" {
+            } else if statusStr == "DONE" || statusStr == "COMPLETED" || statusStr == "FINISHED" || statusStr == "CANCELLED" {
                 mappedStatus = .completed
                 message = "本轮回复已完成"
             } else {
@@ -280,8 +326,8 @@ public final class AntigravityAdapter: AgentAdapter, @unchecked Sendable {
             return nil
         }
 
-        // Prevent stale historical sessions (>10 min without writes) from showing as stuck "running".
-        if mappedStatus == .running && ageSeconds >= 600 {
+        // Prevent stale historical sessions (>3 min without writes) from showing as stuck "running".
+        if mappedStatus == .running && ageSeconds >= 180 {
             mappedStatus = .completed
             message = "历史会话已归档"
         }

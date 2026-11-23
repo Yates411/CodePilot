@@ -97,6 +97,7 @@ final class AppCoordinator: ObservableObject {
     private var alertCoordinator: DebouncedAlertCoordinator?
     private var setupTask: Task<Void, Never>?
     private var zombieSweepTask: Task<Void, Never>?
+    private var adapterPollTask: Task<Void, Never>?
     private var settingsCommitTask: Task<Void, Never>?
     private var batterySyncTask: Task<Void, Never>?
     private var taskStoreListenerId: UUID?
@@ -257,9 +258,21 @@ final class AppCoordinator: ObservableObject {
 
         zombieSweepTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: .seconds(15))
                 guard let self, !self.isShuttingDown else { break }
                 _ = await self.taskStore.sweepZombies()
+            }
+        }
+
+        // Lightweight periodic fallback poll (every 3s) catches missed FSEvents / WAL flushes
+        // and lets quiet running sessions auto-transition promptly.
+        adapterPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3))
+                guard let self, !self.isShuttingDown else { break }
+                for source in self.runningAdapters {
+                    self.adapters[source]?.pollIfNeeded()
+                }
             }
         }
 
@@ -326,6 +339,8 @@ final class AppCoordinator: ObservableObject {
         batteryMonitor.stop()
         zombieSweepTask?.cancel()
         zombieSweepTask = nil
+        adapterPollTask?.cancel()
+        adapterPollTask = nil
         setupTask?.cancel()
         await setupTask?.value
         setupTask = nil

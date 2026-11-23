@@ -12,10 +12,11 @@ public final class CodexAdapter: AgentAdapter, @unchecked Sendable {
     private let epoch: String
     private var seqCounter: UInt64 = 0
     private var threadTitles: [String: (title: String, cwd: String?)] = [:]
+    private var activeRunningSessions: Set<String> = []
     private var lastTitleRefresh: Date = .distantPast
     private let tailer: JSONLTailer
     private let watcher: FSEventWatcher
-    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(300))
+    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(150))
     private let workQueue = DispatchQueue(label: "com.codepilot.adapter.codex", qos: .utility)
     private var emitHandler: (@Sendable (TaskEvent) -> Void)?
 
@@ -53,6 +54,7 @@ public final class CodexAdapter: AgentAdapter, @unchecked Sendable {
         gen = lifecycleGeneration
         emitHandler = emit
         threadTitles.removeAll()
+        activeRunningSessions.removeAll()
         lastTitleRefresh = .distantPast
         lock.unlock()
         tailer.resetAll()
@@ -72,7 +74,7 @@ public final class CodexAdapter: AgentAdapter, @unchecked Sendable {
             self?.scanRecentRollouts(isPriming: true, expectedGeneration: gen)
         }
 
-        _ = watcher.start(paths: [sessionsDir], latency: 0.3) { [weak self] changedPaths in
+        _ = watcher.start(paths: [sessionsDir], latency: 0.1) { [weak self] changedPaths in
             guard let self else { return }
             let rollouts = Set(changedPaths.filter { $0.hasSuffix(".jsonl") && URL(fileURLWithPath: $0).lastPathComponent.hasPrefix("rollout-") })
             let targets = rollouts.isEmpty ? ["__scan_all__"] : Array(rollouts)
@@ -103,9 +105,19 @@ public final class CodexAdapter: AgentAdapter, @unchecked Sendable {
         lifecycleGeneration &+= 1
         emitHandler = nil
         threadTitles.removeAll()
+        activeRunningSessions.removeAll()
         _healthStatus = .idle
         lock.unlock()
         tailer.resetAll()
+    }
+
+    public func pollIfNeeded() {
+        let gen = currentGeneration()
+        guard case .active = healthStatus else { return }
+        workQueue.async { [weak self] in
+            self?.refreshThreadTitlesIfNeeded()
+            self?.scanRecentRollouts(isPriming: false, expectedGeneration: gen)
+        }
     }
 
     /// Exposed for deterministic unit testing.
@@ -168,10 +180,43 @@ public final class CodexAdapter: AgentAdapter, @unchecked Sendable {
     private func processRolloutFile(at path: String, isPriming: Bool, expectedGeneration: UInt64) {
         guard isCurrentGeneration(expectedGeneration) else { return }
         let lines = tailer.readNewLines(at: path)
-        guard !lines.isEmpty else { return }
-
         let modDate = (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate] as? Date) ?? Date()
         let ageSeconds = Date().timeIntervalSince(modDate)
+
+        if lines.isEmpty {
+            let sid = Self.extractThreadId(from: path)
+            if ageSeconds >= 180 {
+                lock.lock()
+                let wasRunning = activeRunningSessions.remove(sid) != nil
+                let cached = threadTitles[sid]
+                let validGen = (lifecycleGeneration == expectedGeneration)
+                let handler = emitHandler
+                lock.unlock()
+                if wasRunning && validGen {
+                    let title = TitleSanitizer.clean(cached?.title, maxLength: 42)
+                        ?? (cached?.cwd.map { "Codex · \(URL(fileURLWithPath: $0).lastPathComponent)" } ?? "Codex 会话 \(sid.prefix(6))")
+                    let archived = TaskEvent(
+                        type: .upsert,
+                        source: .codex,
+                        epoch: epoch,
+                        sessionId: sid,
+                        taskId: "main",
+                        seq: nextSeq(),
+                        status: .completed,
+                        title: title,
+                        message: "会话已静默归档",
+                        appBundleId: nil,
+                        deepLinkURL: "codex://threads/\(sid)",
+                        cwd: cached?.cwd,
+                        isPriming: isPriming,
+                        provenLive: false,
+                        timestamp: modDate
+                    )
+                    handler?(archived)
+                }
+            }
+            return
+        }
 
         var sessionId = Self.extractThreadId(from: path)
         var cwd: String?
@@ -236,10 +281,18 @@ public final class CodexAdapter: AgentAdapter, @unchecked Sendable {
             return
         }
 
-        if status == .running && ageSeconds >= 600 {
+        if status == .running && ageSeconds >= 180 {
             status = .completed
             latestMessage = "历史会话已归档"
         }
+
+        lock.lock()
+        if status == .running {
+            activeRunningSessions.insert(sessionId)
+        } else {
+            activeRunningSessions.remove(sessionId)
+        }
+        lock.unlock()
 
         let resolvedCwd = cwd ?? cached?.cwd
         let title: String

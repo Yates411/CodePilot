@@ -141,6 +141,7 @@ enum S2AdapterTests {
         try expect(events.count == 1)
         try expect(events[0].status == .waitingUser)
         try expect(events[0].title == "帮我重构登录接口")
+        try expect(events[0].deepLinkURL == "claude://code/continue?session=sess-42")
     }
 
     @MainActor
@@ -286,5 +287,37 @@ enum S2AdapterTests {
 
         let sums = "deadbeef1234  CodePilot-v0.4.1-arm64.zip\n"
         try expect(GitHubUpdateService.extractChecksum(for: "CodePilot-v0.4.1-arm64.zip", from: sums) == "deadbeef1234")
+    }
+
+    static func windowMatchScorerAndLargeJSONLLine() async throws {
+        let now = Date()
+        let task = AgentTask(
+            key: TaskKey(source: .antigravity, sessionId: "049814db-bfe4-4216", taskId: "main"),
+            epoch: "e1",
+            lastSeq: 1,
+            title: "修复会话跳转与状态延迟",
+            status: .running,
+            startedAt: now,
+            updatedAt: now,
+            lastHeartbeatAt: now,
+            cwd: "/Users/tianye/workspace/CodePilot"
+        )
+
+        let exactTitleScore = WindowMatchScorer.score(windowTitle: "Antigravity — 修复会话跳转与状态延迟", document: nil, for: task)
+        let folderScore = WindowMatchScorer.score(windowTitle: "CodePilot — main", document: nil, for: task)
+        let unrelatedScore = WindowMatchScorer.score(windowTitle: "Safari — Apple", document: nil, for: task)
+        try expect(exactTitleScore > folderScore, "Exact task title match should outrank folder match")
+        try expect(folderScore > unrelatedScore && unrelatedScore == 0, "Folder match should outrank unrelated window")
+
+        // Verify JSONLTailer default maxLineBytes handles >300KB completion lines without silently dropping them.
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("cp-big-\(UUID().uuidString).jsonl").path
+        defer { try? FileManager.default.removeItem(atPath: tmp) }
+        let padding = String(repeating: "a", count: 320 * 1024)
+        let bigLine = #"{"type":"PLANNER_RESPONSE","status":"DONE","content":"\#(padding)"}"# + "\n"
+        try Data(bigLine.utf8).write(to: URL(fileURLWithPath: tmp))
+
+        let tailer = JSONLTailer()
+        let lines = tailer.readNewLines(at: tmp)
+        try expect(lines.count == 1, "JSONLTailer should read >300KB single JSONL line without dropping it")
     }
 }

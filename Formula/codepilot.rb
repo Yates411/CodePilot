@@ -10,10 +10,10 @@ cask "codepilot" do
   version "0.4.0"
   sha256 :no_check # Replace with SHA256SUMS value from GitHub Release
 
-  url "https://github.com/your-org/CodePilot/releases/download/v#{version}/CodePilot-v#{version}-arm64.zip"
+  url "https://github.com/Yates411/CodePilot/releases/download/v#{version}/CodePilot-v#{version}-arm64.zip"
   name "CodePilot"
   desc "Native macOS Notch & Menu Bar hub + smart keep-awake for AI coding agents"
-  homepage "https://github.com/your-org/CodePilot"
+  homepage "https://github.com/Yates411/CodePilot"
 
   depends_on macos: ">= :sonoma"
   depends_on arch: :arm64

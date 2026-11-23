@@ -13,8 +13,9 @@ public final class DeepSeekHarnessAdapter: AgentAdapter, @unchecked Sendable {
     private let epoch: String
     private var seqCounter: UInt64 = 0
     private var fileFingerprints: [String: (mtime: TimeInterval, size: UInt64)] = [:]
+    private var activeRunningPaths: Set<String> = []
     private let watcher: FSEventWatcher
-    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(250))
+    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(120))
     private let workQueue = DispatchQueue(label: "com.codepilot.adapter.dsh", qos: .utility)
     private var emitHandler: (@Sendable (TaskEvent) -> Void)?
 
@@ -51,6 +52,7 @@ public final class DeepSeekHarnessAdapter: AgentAdapter, @unchecked Sendable {
         gen = lifecycleGeneration
         emitHandler = emit
         fileFingerprints.removeAll()
+        activeRunningPaths.removeAll()
         lock.unlock()
 
         let fm = FileManager.default
@@ -78,7 +80,7 @@ public final class DeepSeekHarnessAdapter: AgentAdapter, @unchecked Sendable {
             self?.scanRecentSessions(isPriming: true, expectedGeneration: gen)
         }
 
-        _ = watcher.start(paths: [projCacheDirectory], latency: 0.25) { [weak self] changedPaths in
+        _ = watcher.start(paths: [projCacheDirectory], latency: 0.1) { [weak self] changedPaths in
             guard let self else { return }
             let jsonFiles = Set(changedPaths.filter {
                 $0.hasSuffix(".json") && URL(fileURLWithPath: $0).lastPathComponent.hasPrefix("session-")
@@ -110,8 +112,17 @@ public final class DeepSeekHarnessAdapter: AgentAdapter, @unchecked Sendable {
         lifecycleGeneration &+= 1
         emitHandler = nil
         fileFingerprints.removeAll()
+        activeRunningPaths.removeAll()
         _healthStatus = .idle
         lock.unlock()
+    }
+
+    public func pollIfNeeded() {
+        let gen = currentGeneration()
+        guard case .active = healthStatus else { return }
+        workQueue.async { [weak self] in
+            self?.scanRecentSessions(isPriming: false, expectedGeneration: gen)
+        }
     }
 
     /// Exposed for deterministic unit testing.
@@ -131,11 +142,15 @@ public final class DeepSeekHarnessAdapter: AgentAdapter, @unchecked Sendable {
         }
 
         let fp = (mtime: modDate.timeIntervalSince1970, size: sizeNum.uint64Value)
+        let ageSeconds = Date().timeIntervalSince(modDate)
         lock.lock()
         let prev = fileFingerprints[path]
+        let wasRunning = activeRunningPaths.contains(path)
         lock.unlock()
         if let prev, prev.mtime == fp.mtime && prev.size == fp.size {
-            return
+            if !(wasRunning && ageSeconds >= 180) {
+                return
+            }
         }
 
         var parsedEvent: TaskEvent?
@@ -162,6 +177,11 @@ public final class DeepSeekHarnessAdapter: AgentAdapter, @unchecked Sendable {
             return
         }
         fileFingerprints[path] = fp
+        if event.status == .running {
+            activeRunningPaths.insert(path)
+        } else {
+            activeRunningPaths.remove(path)
+        }
         let handler = emitHandler
         lock.unlock()
 
@@ -239,9 +259,15 @@ public final class DeepSeekHarnessAdapter: AgentAdapter, @unchecked Sendable {
             message = "有 \(activeQuestions.count) 个问题等待你回复"
             provenLive = !isPriming || ageSeconds < 120
         } else if isOpenTurn || turnOpen {
-            status = .running
-            message = "DeepSeek Harness 执行中"
-            provenLive = !isPriming || ageSeconds < 120
+            if ageSeconds >= 180 {
+                status = .completed
+                message = "历史会话已归档"
+                provenLive = false
+            } else {
+                status = .running
+                message = "DeepSeek Harness 执行中"
+                provenLive = !isPriming || ageSeconds < 120
+            }
         } else if boundaryKind == "error" || boundaryKind == "aborted" {
             status = .error
             message = "任务异常中止"
@@ -263,7 +289,7 @@ public final class DeepSeekHarnessAdapter: AgentAdapter, @unchecked Sendable {
             status: status,
             title: title,
             message: message,
-            appBundleId: nil,
+            appBundleId: "com.deepseek.dsh",
             cwd: cwd,
             isPriming: isPriming,
             provenLive: provenLive,

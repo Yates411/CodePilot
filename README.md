@@ -62,10 +62,10 @@ When you run multiple AI coding agents in parallel (Antigravity, OpenAI Codex, C
 ### Build from Source (macOS 14+ / CommandLineTools or Xcode)
 
 ```bash
-git clone https://github.com/your-org/CodePilot.git
+git clone https://github.com/Yates411/CodePilot.git
 cd CodePilot
 
-# Run all 33 unit tests
+# Run all 35 unit tests
 ./scripts/test.sh
 
 # Build & ad-hoc sign Release .app

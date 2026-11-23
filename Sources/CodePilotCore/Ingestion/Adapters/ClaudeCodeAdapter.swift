@@ -12,9 +12,10 @@ public final class ClaudeCodeAdapter: AgentAdapter, @unchecked Sendable {
     private let epoch: String
     private var seqCounter: UInt64 = 0
     private var sessionTitles: [String: String] = [:]
+    private var activeRunningSessions: Set<String> = []
     private let tailer: JSONLTailer
     private let watcher: FSEventWatcher
-    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(300))
+    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(150))
     private let workQueue = DispatchQueue(label: "com.codepilot.adapter.claudecode", qos: .utility)
     private var emitHandler: (@Sendable (TaskEvent) -> Void)?
 
@@ -52,6 +53,7 @@ public final class ClaudeCodeAdapter: AgentAdapter, @unchecked Sendable {
         gen = lifecycleGeneration
         emitHandler = emit
         sessionTitles.removeAll()
+        activeRunningSessions.removeAll()
         lock.unlock()
         tailer.resetAll()
 
@@ -68,7 +70,7 @@ public final class ClaudeCodeAdapter: AgentAdapter, @unchecked Sendable {
             self?.scanRecentSessions(isPriming: true, expectedGeneration: gen)
         }
 
-        _ = watcher.start(paths: [projectsDirectory], latency: 0.3) { [weak self] changedPaths in
+        _ = watcher.start(paths: [projectsDirectory], latency: 0.1) { [weak self] changedPaths in
             guard let self else { return }
             let files = Set(changedPaths.filter { $0.hasSuffix(".jsonl") && !$0.contains("/subagents/") })
             let targets = files.isEmpty ? ["__scan_all__"] : Array(files)
@@ -98,9 +100,18 @@ public final class ClaudeCodeAdapter: AgentAdapter, @unchecked Sendable {
         lifecycleGeneration &+= 1
         emitHandler = nil
         sessionTitles.removeAll()
+        activeRunningSessions.removeAll()
         _healthStatus = .idle
         lock.unlock()
         tailer.resetAll()
+    }
+
+    public func pollIfNeeded() {
+        let gen = currentGeneration()
+        guard case .active = healthStatus else { return }
+        workQueue.async { [weak self] in
+            self?.scanRecentSessions(isPriming: false, expectedGeneration: gen)
+        }
     }
 
     /// Exposed for deterministic unit testing.
@@ -130,11 +141,40 @@ public final class ClaudeCodeAdapter: AgentAdapter, @unchecked Sendable {
     private func processSessionFile(at path: String, isPriming: Bool, expectedGeneration: UInt64) {
         guard isCurrentGeneration(expectedGeneration) else { return }
         let lines = tailer.readNewLines(at: path)
-        guard !lines.isEmpty else { return }
-
         let sessionId = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
         let modDate = (try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate] as? Date) ?? Date()
         let ageSeconds = Date().timeIntervalSince(modDate)
+
+        if lines.isEmpty {
+            if ageSeconds >= 180 {
+                lock.lock()
+                let wasRunning = activeRunningSessions.remove(sessionId) != nil
+                let title = sessionTitles[sessionId] ?? "Claude 会话 \(sessionId.prefix(6))"
+                let validGen = (lifecycleGeneration == expectedGeneration)
+                let handler = emitHandler
+                lock.unlock()
+                if wasRunning && validGen {
+                    let archived = TaskEvent(
+                        type: .upsert,
+                        source: .claudeCode,
+                        epoch: epoch,
+                        sessionId: sessionId,
+                        taskId: "main",
+                        seq: nextSeq(),
+                        status: .completed,
+                        title: title,
+                        message: "会话已静默归档",
+                        appBundleId: nil,
+                        deepLinkURL: "claude://code/continue?session=\(sessionId)",
+                        isPriming: isPriming,
+                        provenLive: false,
+                        timestamp: modDate
+                    )
+                    handler?(archived)
+                }
+            }
+            return
+        }
 
         var latestStatus: TaskStatus?
         var latestMessage: String?
@@ -179,19 +219,29 @@ public final class ClaudeCodeAdapter: AgentAdapter, @unchecked Sendable {
                 } else if stopReason == "tool_use" || stopReason == "pause_turn" {
                     latestStatus = .running
                     latestMessage = "正在执行工具调用"
-                } else if stopReason == "end_turn" || stopReason == "stop_sequence" {
+                } else if stopReason == "end_turn" || stopReason == "stop_sequence" || stopReason == "max_tokens" {
                     latestStatus = .completed
                     latestMessage = "本轮任务已完成"
                 }
             }
         }
 
-        guard let status = latestStatus else { return }
+        guard var status = latestStatus else { return }
+
+        if status == .running && ageSeconds >= 180 {
+            status = .completed
+            latestMessage = "历史会话已归档"
+        }
 
         lock.lock()
         guard lifecycleGeneration == expectedGeneration else {
             lock.unlock()
             return
+        }
+        if status == .running {
+            activeRunningSessions.insert(sessionId)
+        } else {
+            activeRunningSessions.remove(sessionId)
         }
         let title = sessionTitles[sessionId] ?? (cwd.map { "Claude · \(URL(fileURLWithPath: $0).lastPathComponent)" } ?? "Claude 会话 \(sessionId.prefix(6))")
         let handler = emitHandler
@@ -215,6 +265,7 @@ public final class ClaudeCodeAdapter: AgentAdapter, @unchecked Sendable {
             title: title,
             message: latestMessage,
             appBundleId: nil,
+            deepLinkURL: "claude://code/continue?session=\(sessionId)",
             cwd: cwd,
             isPriming: isPriming,
             provenLive: provenLive,

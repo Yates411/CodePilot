@@ -14,7 +14,7 @@ public final class WorkBuddyAdapter: AgentAdapter, @unchecked Sendable {
     private var consecutiveSQLiteFailures: Int = 0
     private var lastEmittedSignature: [String: String] = [:]
     private let watcher: FSEventWatcher
-    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(400))
+    private let coalescer = AdapterRefreshCoalescer(delay: .milliseconds(150))
     private let workQueue = DispatchQueue(label: "com.codepilot.adapter.workbuddy", qos: .utility)
     private var emitHandler: (@Sendable (TaskEvent) -> Void)?
 
@@ -79,7 +79,7 @@ public final class WorkBuddyAdapter: AgentAdapter, @unchecked Sendable {
             self?.refresh(isPriming: true, expectedGeneration: gen)
         }
 
-        _ = watcher.start(paths: [rootDirectory], latency: 0.4) { [weak self] changedPaths in
+        _ = watcher.start(paths: [rootDirectory], latency: 0.1) { [weak self] changedPaths in
             guard let self else { return }
             let relevant = changedPaths.contains {
                 $0.hasSuffix("workbuddy.db") || $0.hasSuffix("workbuddy.db-wal") || $0.contains("/sessions/")
@@ -107,6 +107,14 @@ public final class WorkBuddyAdapter: AgentAdapter, @unchecked Sendable {
         lastEmittedSignature.removeAll()
         _healthStatus = .idle
         lock.unlock()
+    }
+
+    public func pollIfNeeded() {
+        let gen = currentGeneration()
+        guard case .active = healthStatus else { return }
+        workQueue.async { [weak self] in
+            self?.refresh(isPriming: false, expectedGeneration: gen)
+        }
     }
 
     /// Exposed for deterministic unit testing.
@@ -318,7 +326,7 @@ public final class WorkBuddyAdapter: AgentAdapter, @unchecked Sendable {
             status: status,
             title: title,
             message: message,
-            appBundleId: nil,
+            appBundleId: "com.tencent.workbuddy.mac",
             cwd: cwd,
             pid: pid,
             isPriming: isPriming,

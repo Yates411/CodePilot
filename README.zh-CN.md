@@ -45,10 +45,10 @@
 ## 快速构建与安装
 
 ```bash
-git clone https://github.com/your-org/CodePilot.git
+git clone https://github.com/Yates411/CodePilot.git
 cd CodePilot
 
-# 运行全部 33 个单元测试
+# 运行全部 35 个单元测试
 ./scripts/test.sh
 
 # 编译打包 Release .app 并 ad-hoc 签名

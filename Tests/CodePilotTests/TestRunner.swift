@@ -54,7 +54,8 @@ struct CodePilotTestMain {
             ("v0.4.titleSanitizerBoundsAndMetadata", S2AdapterTests.titleSanitizerBoundsAndMetadata),
             ("v0.4.antigravityApprovalTriggersWaitingUser", S2AdapterTests.antigravityApprovalTriggersWaitingUser),
             ("v0.4.processRuleKeepAwakeAndLowBattery", S2AdapterTests.processRuleKeepAwakeAndLowBattery),
-            ("v0.4.githubUpdateParsingAndSemver", S2AdapterTests.githubUpdateParsingAndSemver)
+            ("v0.4.githubUpdateParsingAndSemver", S2AdapterTests.githubUpdateParsingAndSemver),
+            ("v0.4.windowMatchScorerAndLargeJSONLLine", S2AdapterTests.windowMatchScorerAndLargeJSONLLine)
         ]
 
         var passed = 0

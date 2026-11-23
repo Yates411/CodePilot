@@ -28,4 +28,9 @@ public protocol AgentAdapter: AnyObject, Sendable {
     var healthStatus: AdapterHealth { get }
     func start(emit: @escaping @Sendable (TaskEvent) -> Void)
     func stop()
+    func pollIfNeeded()
+}
+
+public extension AgentAdapter {
+    func pollIfNeeded() {}
 }

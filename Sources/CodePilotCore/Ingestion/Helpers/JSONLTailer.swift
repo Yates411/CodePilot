@@ -29,7 +29,7 @@ public final class JSONLTailer: @unchecked Sendable {
     private let lock = NSLock()
     private var states: [String: JSONLTailState] = [:]
 
-    public init(maxLineBytes: Int = 256 * 1024, initialTailWindowBytes: UInt64 = 64 * 1024) {
+    public init(maxLineBytes: Int = 4 * 1024 * 1024, initialTailWindowBytes: UInt64 = 1024 * 1024) {
         self.maxLineBytes = max(1024, maxLineBytes)
         self.initialTailWindowBytes = max(4096, initialTailWindowBytes)
     }

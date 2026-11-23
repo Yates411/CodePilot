@@ -103,7 +103,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         lowBalanceAlertEnabled: Bool = true,
         deepseekLowBalanceThreshold: Double = 10.0,
         codexLowQuotaThreshold: Int = 15,
-        githubUpdateRepo: String = ""
+        githubUpdateRepo: String = "Yates411/CodePilot"
     ) {
         self.autoKeepAwakeEnabled = autoKeepAwakeEnabled
         self.autoPreventDisplaySleep = autoPreventDisplaySleep

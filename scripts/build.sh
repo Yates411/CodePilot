@@ -30,6 +30,7 @@ swiftc \
     "${OPT_FLAGS[@]}" \
     -framework IOKit \
     -framework AppKit \
+    -framework ApplicationServices \
     -framework CoreServices \
     -framework UserNotifications \
     -framework ServiceManagement \
