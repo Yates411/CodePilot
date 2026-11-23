@@ -552,7 +552,7 @@ final class AppCoordinator: ObservableObject {
     }
 
     var currentAppVersion: String {
-        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.4.0"
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "0.4.1"
     }
 
     func checkForUpdates() {

@@ -1,7 +1,7 @@
 # CodePilot 项目交接文档（HANDOFF）
 
 > **更新日期**：2026-11-24  
-> **当前版本**：`v0.4.0`（方向 A 视觉体系 + 方向 B 核心功能 + 方向 C 开源发布基础设施全部落地；Git 仓库已推送至 `Yates411/CodePilot`）  
+> **当前版本**：`v0.4.1`（方向 A 视觉体系 + 方向 B 核心功能 + 方向 C 开源发布基础设施全部落地；Git 仓库已推送至 `Yates411/CodePilot`）  
 > **项目路径**：`/Users/tianye/.gemini/antigravity/scratch/CodePilot`  
 > **前置会话**：[049814db-bfe4-4216-9e8f-63bd1f3ddab4](conversation://049814db-bfe4-4216-9e8f-63bd1f3ddab4)  
 > **测试状态**：`35/35` 单元测试全部通过（Swift 6 严格并发 `0 warning`）

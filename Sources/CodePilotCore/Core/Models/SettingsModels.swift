@@ -147,6 +147,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let d = AppSettings()
+        let decodedRepo = (try c.decodeIfPresent(String.self, forKey: .githubUpdateRepo) ?? d.githubUpdateRepo)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedRepo = decodedRepo.isEmpty ? d.githubUpdateRepo : decodedRepo
         self.init(
             autoKeepAwakeEnabled: try c.decodeIfPresent(Bool.self, forKey: .autoKeepAwakeEnabled) ?? d.autoKeepAwakeEnabled,
             autoPreventDisplaySleep: try c.decodeIfPresent(Bool.self, forKey: .autoPreventDisplaySleep) ?? d.autoPreventDisplaySleep,
@@ -184,7 +187,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
             lowBalanceAlertEnabled: try c.decodeIfPresent(Bool.self, forKey: .lowBalanceAlertEnabled) ?? d.lowBalanceAlertEnabled,
             deepseekLowBalanceThreshold: try c.decodeIfPresent(Double.self, forKey: .deepseekLowBalanceThreshold) ?? d.deepseekLowBalanceThreshold,
             codexLowQuotaThreshold: try c.decodeIfPresent(Int.self, forKey: .codexLowQuotaThreshold) ?? d.codexLowQuotaThreshold,
-            githubUpdateRepo: try c.decodeIfPresent(String.self, forKey: .githubUpdateRepo) ?? d.githubUpdateRepo
+            githubUpdateRepo: resolvedRepo
         )
     }
 

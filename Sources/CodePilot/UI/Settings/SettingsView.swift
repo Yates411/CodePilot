@@ -45,7 +45,7 @@ struct SettingsView: View {
                     Text("CODEPILOT")
                         .font(.system(size: 12.5, weight: .bold, design: .monospaced))
                         .tracking(0.6)
-                    Text("v0.4.0")
+                    Text("v\(coordinator.currentAppVersion)")
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -643,7 +643,7 @@ struct SettingsView: View {
             )
 
             oledStatusBar(
-                left: "CodePilot v0.4.0",
+                left: "CodePilot v\(coordinator.currentAppVersion)",
                 right: coordinator.launchAtLoginEnabled ? "开机自启 · ON" : "开机自启 · OFF",
                 rightColor: coordinator.launchAtLoginEnabled ? BrandPalette.emeraldGreen : .white.opacity(0.5)
             )
@@ -687,7 +687,7 @@ struct SettingsView: View {
             settingsCard(title: "软件更新（GitHub Releases）") {
                 VStack(alignment: .leading, spacing: 9) {
                     HStack(spacing: 8) {
-                        TextField("GitHub 仓库（如 yourname/CodePilot）", text: binding(\.githubUpdateRepo))
+                        TextField("Yates411/CodePilot", text: binding(\.githubUpdateRepo))
                             .textFieldStyle(.roundedBorder)
                         Button(coordinator.isCheckingUpdate ? "检查中…" : "检查更新") {
                             coordinator.checkForUpdates()
@@ -730,7 +730,7 @@ struct SettingsView: View {
 
             settingsCard(title: "关于 CodePilot") {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("CodePilot v0.4.0")
+                    Text("CodePilot v\(coordinator.currentAppVersion)")
                         .font(.system(size: 13, weight: .semibold))
                     Text("纯原生 Swift / SwiftUI / AppKit / IOKit 构建，100% 本地只读运行，零对话内容上传。")
                         .font(.system(size: 12))

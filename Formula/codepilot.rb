@@ -7,7 +7,7 @@
 #   SUPublicEDKey in Resources/Info.plist and host appcast.xml on GitHub Releases.
 
 cask "codepilot" do
-  version "0.4.0"
+  version "0.4.1"
   sha256 :no_check # Replace with SHA256SUMS value from GitHub Release
 
   url "https://github.com/Yates411/CodePilot/releases/download/v#{version}/CodePilot-v#{version}-arm64.zip"
