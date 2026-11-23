@@ -345,8 +345,13 @@ struct NotchContentView: View {
                         .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
 
-                    Button(isManualKeepAwake ? "关闭" : "永久") {
-                        coordinator.toggleManualKeepAwake()
+                    let isAwake = coordinator.powerSnapshot.isKeepingAwake
+                    Button(isAwake ? "关闭" : "永久") {
+                        if isAwake {
+                            coordinator.releaseAllKeepAwake()
+                        } else {
+                            coordinator.toggleManualKeepAwake()
+                        }
                     }
                     .buttonStyle(.plain)
                     .font(.system(size: 10.5, weight: .semibold))
@@ -354,7 +359,7 @@ struct NotchContentView: View {
                     .padding(.horizontal, 9.5)
                     .padding(.vertical, 3.5)
                     .background(
-                        isManualKeepAwake ? Color.white.opacity(0.22) : BrandPalette.braunOrange,
+                        isAwake ? Color.white.opacity(0.22) : BrandPalette.braunOrange,
                         in: RoundedRectangle(cornerRadius: 6, style: .continuous)
                     )
                 }
